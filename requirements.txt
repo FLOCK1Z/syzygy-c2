@@ -1,0 +1,8 @@
+flask
+psycopg2-binary
+pyjwt
+requests
+PyPDF2
+google-auth
+discord.py
+python-dotenv
