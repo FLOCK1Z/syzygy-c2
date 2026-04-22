@@ -2162,22 +2162,32 @@ def admin_scan():
 # ==========================================
 # 10. INICIALIZAÇÃO UNIVERSAL (RENDER/VPS READY)
 # ==========================================
-def run_flask_server():
-    """ O Flask ouve a porta do ambiente ou a 10000 padrão do Render """
-    porta = int(os.environ.get("PORT", 10000))
-    # use_reloader=False é OBRIGATÓRIO no Render para não travar o bot
-    app.run(host='0.0.0.0', port=porta, debug=False, use_reloader=False)
+def run_discord_bot():
+    """ Discord roda no background com Escudo de Auto-Reconexão """
+    if not DISCORD_TOKEN:
+        print("🔴 [CRÍTICO] DISCORD_TOKEN ausente nas variáveis de ambiente!")
+        return
+        
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    
+    # Loop infinito: Se o Cloudflare/Discord derrubar, ele levanta de novo.
+    while True:
+        try:
+            print("[SISTEMA] Conectando Módulo Militar (Discord)...")
+            loop.run_until_complete(bot.start(DISCORD_TOKEN))
+        except Exception as e:
+            print(f"🔴 [DISCORD ERRO] A conexão caiu ou foi bloqueada. Tentando novamente em 5s...")
+            time.sleep(5)
 
 if __name__ == "__main__": 
-    # 1. Flask no background
-    flask_thread = threading.Thread(target=run_flask_server, daemon=True)
-    flask_thread.start()
-    print(f"[SISTEMA] Servidor Web ativo na porta 10000.")
+    # 1. Dispara o Discord no background
+    discord_thread = threading.Thread(target=run_discord_bot, daemon=True)
+    discord_thread.start()
     
-    # 2. Discord na Main Thread (Para não dar erro de SSL/Timeout)
-    print("[SISTEMA] Conectando Discord...")
-    if DISCORD_TOKEN:
-        try:
-            bot.run(DISCORD_TOKEN)
-        except Exception as e:
-            print(f"🔴 Erro: {e}")
+    # 2. O Flask assume a Rota Principal para satisfazer o Render (Porta 10000)
+    porta = int(os.environ.get("PORT", 10000))
+    print(f"[SISTEMA] Servidor Web (Flask) assumindo a porta {porta}...")
+    
+    # use_reloader=False é OBRIGATÓRIO para não duplicar o bot no Render
+    app.run(host='0.0.0.0', port=porta, debug=False, use_reloader=False)
