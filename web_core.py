@@ -2160,20 +2160,21 @@ def admin_scan():
     except Exception as e: return jsonify({"sucesso": False, "erro": str(e)})
 
 # ==========================================
-# 10. INICIALIZAÇÃO MONOLÍTICA (INVERSÃO DE THREADS)
+# 10. INICIALIZAÇÃO MONOLÍTICA (KOYEB READY)
 # ==========================================
 def run_flask_server():
-    """ O Flask vai para o background, pois não exige controle de Sinais do Linux """
-    app.run(host='0.0.0.0', port=7860, debug=False, use_reloader=False)
+    """ O Flask vai para o background e ouve a porta exigida pelo Koyeb """
+    # O Koyeb injeta a variável PORT automaticamente (geralmente 8000)
+    porta = int(os.environ.get("PORT", 8000))
+    app.run(host='0.0.0.0', port=porta, debug=False, use_reloader=False)
 
 if __name__ == "__main__": 
-    # 1. Dispara o Painel Web (Vue.js) no escuro da Thread Secundária
+    # 1. Dispara o Painel Web (Flask) no escuro da Thread Secundária
     flask_thread = threading.Thread(target=run_flask_server, daemon=True)
     flask_thread.start()
-    print("[SISTEMA] Servidor Web (Flask) operando blindado no background.")
+    print(f"[SISTEMA] Servidor Web (Flask) operando blindado no background.")
     
     # 2. O Módulo Militar do Discord assume a Rota Principal (Main Thread)
-    # Isso destrava instantaneamente o gargalo do WebSocket que estava travando o login.
     print("[SISTEMA] Conectando Discord na Rota Principal...")
     if DISCORD_TOKEN:
         try:
@@ -2183,4 +2184,4 @@ if __name__ == "__main__":
     else:
         print("🔴 [CRÍTICO] DISCORD_TOKEN não configurado nas variáveis de ambiente.")
         while True: 
-            time.sleep(1) # Mantém o site vivo caso o bot falhe
+            time.sleep(1) # Mantém a máquina viva
