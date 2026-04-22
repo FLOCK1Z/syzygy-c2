@@ -2160,34 +2160,37 @@ def admin_scan():
     except Exception as e: return jsonify({"sucesso": False, "erro": str(e)})
 
 # ==========================================
-# 10. INICIALIZAÇÃO UNIVERSAL (RENDER/VPS READY)
+# 10. INICIALIZAÇÃO MONOLÍTICA (PRODUÇÃO V30.2)
 # ==========================================
-def run_discord_bot():
-    """ Discord roda no background com Escudo de Auto-Reconexão """
-    if not DISCORD_TOKEN:
-        print("🔴 [CRÍTICO] DISCORD_TOKEN ausente nas variáveis de ambiente!")
-        return
-        
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    
-    # Loop infinito: Se o Cloudflare/Discord derrubar, ele levanta de novo.
+def run_flask_server():
+    """ O Flask assume a Main Thread para garantir que o Container fique Online """
+    # Back4App injeta a variável PORT, caso contrário usa 8080
+    porta = int(os.environ.get("PORT", 8080))
+    print(f"[SISTEMA] Servidor Web (Flask) operando na porta {porta}")
+    # use_reloader=False é vital para não duplicar o bot no background
+    app.run(host='0.0.0.0', port=porta, debug=False, use_reloader=False)
+
+async def main_bot():
+    """ Motor Principal do Bot com Auto-Reconexão Blindada """
     while True:
         try:
-            print("[SISTEMA] Conectando Módulo Militar (Discord)...")
-            loop.run_until_complete(bot.start(DISCORD_TOKEN))
+            print("[SISTEMA] Módulo Militar tentando conexão com Discord...")
+            await bot.start(DISCORD_TOKEN)
         except Exception as e:
-            print(f"🔴 [DISCORD ERRO] A conexão caiu ou foi bloqueada. Tentando novamente em 5s...")
-            time.sleep(5)
+            print(f"🔴 [ERRO DISCORD] Falha de handshake: {e}. Reiniciando em 7s...")
+            await asyncio.sleep(7)
+
+def start_bot_thread():
+    """ Dispara o loop do Discord em uma Thread isolada e protegida """
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    loop.run_until_complete(main_bot())
 
 if __name__ == "__main__": 
-    # 1. Dispara o Discord no background
-    discord_thread = threading.Thread(target=run_discord_bot, daemon=True)
-    discord_thread.start()
+    # 1. Dispara o Bot do Discord no background
+    d_thread = threading.Thread(target=start_bot_thread, daemon=True)
+    d_thread.start()
     
-    # 2. O Flask assume a Rota Principal para satisfazer o Render (Porta 10000)
-    porta = int(os.environ.get("PORT", 10000))
-    print(f"[SISTEMA] Servidor Web (Flask) assumindo a porta {porta}...")
-    
-    # use_reloader=False é OBRIGATÓRIO para não duplicar o bot no Render
-    app.run(host='0.0.0.0', port=porta, debug=False, use_reloader=False)
+    # 2. O Flask assume a linha principal (Main Thread) 
+    # Isso mantém o container ativo e responde aos pings de saúde da plataforma
+    run_flask_server()
