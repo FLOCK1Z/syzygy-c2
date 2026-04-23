@@ -85,6 +85,17 @@ def get_db():
     return psycopg2.connect(DATABASE_URL, sslmode='require')
 
 def init_db():
+        migracoes = [
+            "ALTER TABLE users ADD COLUMN IF NOT EXISTS auth_provider TEXT DEFAULT 'local'",
+            "ALTER TABLE users ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'ativo'",
+            "ALTER TABLE users ADD COLUMN IF NOT EXISTS tier TEXT DEFAULT 'free'",
+            "ALTER TABLE users ADD COLUMN IF NOT EXISTS telefone TEXT UNIQUE", # <--- ADICIONE ESTA LINHA AQUI
+            "ALTER TABLE ias ADD COLUMN IF NOT EXISTS tier_req TEXT DEFAULT 'free'",
+            "ALTER TABLE ias ADD COLUMN IF NOT EXISTS config TEXT DEFAULT '{}'",
+            "ALTER TABLE system_limits ADD COLUMN IF NOT EXISTS features TEXT",
+            "ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP"
+        ]
+
     print("[SYSTEM BOOT] Iniciando verificação de topologia de Banco de Dados...")
     try:
         conn = get_db()
