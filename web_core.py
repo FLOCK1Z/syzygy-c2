@@ -2160,37 +2160,27 @@ def admin_scan():
     except Exception as e: return jsonify({"sucesso": False, "erro": str(e)})
 
 # ==========================================
-# 10. INICIALIZAÇÃO MONOLÍTICA (PRODUÇÃO V30.2)
+# 10. INICIALIZAÇÃO UNIVERSAL (RENDER DEFINITIVO)
 # ==========================================
 def run_flask_server():
-    """ O Flask assume a Main Thread para garantir que o Container fique Online """
-    # Back4App injeta a variável PORT, caso contrário usa 8080
-    porta = int(os.environ.get("PORT", 8080))
-    print(f"[SISTEMA] Servidor Web (Flask) operando na porta {porta}")
-    # use_reloader=False é vital para não duplicar o bot no background
+    """ O Flask roda silenciosamente no background, servindo a Web e o UptimeRobot """
+    porta = int(os.environ.get("PORT", 10000))
+    print(f"[SISTEMA] Servidor Web (Flask) operando blindado na porta {porta}")
     app.run(host='0.0.0.0', port=porta, debug=False, use_reloader=False)
 
-async def main_bot():
-    """ Motor Principal do Bot com Auto-Reconexão Blindada """
-    while True:
-        try:
-            print("[SISTEMA] Módulo Militar tentando conexão com Discord...")
-            await bot.start(DISCORD_TOKEN)
-        except Exception as e:
-            print(f"🔴 [ERRO DISCORD] Falha de handshake: {e}. Reiniciando em 7s...")
-            await asyncio.sleep(7)
-
-def start_bot_thread():
-    """ Dispara o loop do Discord em uma Thread isolada e protegida """
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    loop.run_until_complete(main_bot())
-
 if __name__ == "__main__": 
-    # 1. Dispara o Bot do Discord no background
-    d_thread = threading.Thread(target=start_bot_thread, daemon=True)
-    d_thread.start()
+    # 1. Colocamos o Flask na Thread Secundária (Ele trabalha perfeito no escuro)
+    flask_thread = threading.Thread(target=run_flask_server, daemon=True)
+    flask_thread.start()
     
-    # 2. O Flask assume a linha principal (Main Thread) 
-    # Isso mantém o container ativo e responde aos pings de saúde da plataforma
-    run_flask_server()
+    # 2. O Discord assume a Linha Principal
+    # Isso evita 100% dos travamentos silenciosos de rede no Linux do Render
+    print("[SISTEMA] Conectando Módulo Militar na Linha Principal...")
+    if not DISCORD_TOKEN:
+        print("🔴 [CRÍTICO] DISCORD_TOKEN não encontrado nas Variáveis de Ambiente do Render!")
+    else:
+        try:
+            # bot.run() liga o motor oficial, gerencia o loop e lida com o Cloudflare nativamente
+            bot.run(DISCORD_TOKEN)
+        except Exception as e:
+            print(f"🔴 [ERRO FATAL DISCORD]: {e}")
