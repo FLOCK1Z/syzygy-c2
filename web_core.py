@@ -1829,6 +1829,48 @@ HTML_ADMIN = """
 </html>
 """
 
+# ==========================================
+# 6.5. MOTOR HEADLESS (CÉREBRO OMNI-CHANNEL)
+# ==========================================
+class SistemaHeadless:
+    """ Núcleo de processamento universal para WhatsApp, Discord e Vue.js """
+    
+    @staticmethod
+    def validar_operador(identificador, origem="whatsapp"):
+        """ Verifica se o número do WhatsApp pertence a um operador real """
+        conn = get_db()
+        cur = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
+        if origem == "whatsapp":
+            cur.execute("SELECT * FROM users WHERE telefone = %s AND status = 'ativo'", (identificador,))
+        else:
+            cur.execute("SELECT * FROM users WHERE login = %s AND status = 'ativo'", (identificador,))
+        user = cur.fetchone()
+        conn.close()
+        return dict(user) if user else None
+
+    @staticmethod
+    def executar_comando(comando, argumentos, user_data):
+        """ Roteia a lógica pura, idêntica ao !api do Discord """
+        # Isso centraliza as funções. Exemplo prático de migração das 28 funções:
+        
+        if comando == "key_info":
+            env_name = argumentos[0] if argumentos else ""
+            db = exec_db_query("SELECT api_key FROM api_vault WHERE env_name = %s", (env_name,), fetch=True)
+            chave = db[0]['api_key'] if db else os.environ.get(env_name)
+            if chave:
+                return f"🔑 *Cofre:* `{env_name}`\nOrigem: `{'DB' if db else 'ENV'}`\nTamanho: {len(chave)}\nPrefixo: {chave[:5]}***"
+            return "🔴 Cofre vazio ou chave inexistente."
+            
+        elif comando == "audit_op":
+            if not user_data.get('is_admin'): return "🔴 Acesso Negado. Exige Nível Master."
+            login_alvo = argumentos[0] if argumentos else ""
+            uso = exec_db_query("SELECT msg_count FROM user_usage WHERE login = %s", (login_alvo,), fetch=True)
+            if not uso: return "🔴 Operador não existe no radar."
+            return f"👤 *Dossiê Operacional:* {login_alvo}\nConsumo: {uso[0]['msg_count']} msgs."
+
+        # Retorno padrão para comandos não migrados ainda
+        return f"⚠️ O comando tático `{comando}` ainda está sendo acoplado ao Motor Headless."
+
 
 # ==========================================
 # 7. ROTAS FLASK DO C2 E MOTOR DE DESCOBERTA
