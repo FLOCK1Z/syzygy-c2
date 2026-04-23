@@ -85,17 +85,6 @@ def get_db():
     return psycopg2.connect(DATABASE_URL, sslmode='require')
 
 def init_db():
-        migracoes = [
-            "ALTER TABLE users ADD COLUMN IF NOT EXISTS auth_provider TEXT DEFAULT 'local'",
-            "ALTER TABLE users ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'ativo'",
-            "ALTER TABLE users ADD COLUMN IF NOT EXISTS tier TEXT DEFAULT 'free'",
-            "ALTER TABLE users ADD COLUMN IF NOT EXISTS telefone TEXT UNIQUE", # <--- ADICIONE ESTA LINHA AQUI
-            "ALTER TABLE ias ADD COLUMN IF NOT EXISTS tier_req TEXT DEFAULT 'free'",
-            "ALTER TABLE ias ADD COLUMN IF NOT EXISTS config TEXT DEFAULT '{}'",
-            "ALTER TABLE system_limits ADD COLUMN IF NOT EXISTS features TEXT",
-            "ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP"
-        ]
-
     print("[SYSTEM BOOT] Iniciando verificação de topologia de Banco de Dados...")
     try:
         conn = get_db()
@@ -1829,48 +1818,6 @@ HTML_ADMIN = """
 </html>
 """
 
-# ==========================================
-# 6.5. MOTOR HEADLESS (CÉREBRO OMNI-CHANNEL)
-# ==========================================
-class SistemaHeadless:
-    """ Núcleo de processamento universal para WhatsApp, Discord e Vue.js """
-    
-    @staticmethod
-    def validar_operador(identificador, origem="whatsapp"):
-        """ Verifica se o número do WhatsApp pertence a um operador real """
-        conn = get_db()
-        cur = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
-        if origem == "whatsapp":
-            cur.execute("SELECT * FROM users WHERE telefone = %s AND status = 'ativo'", (identificador,))
-        else:
-            cur.execute("SELECT * FROM users WHERE login = %s AND status = 'ativo'", (identificador,))
-        user = cur.fetchone()
-        conn.close()
-        return dict(user) if user else None
-
-    @staticmethod
-    def executar_comando(comando, argumentos, user_data):
-        """ Roteia a lógica pura, idêntica ao !api do Discord """
-        # Isso centraliza as funções. Exemplo prático de migração das 28 funções:
-        
-        if comando == "key_info":
-            env_name = argumentos[0] if argumentos else ""
-            db = exec_db_query("SELECT api_key FROM api_vault WHERE env_name = %s", (env_name,), fetch=True)
-            chave = db[0]['api_key'] if db else os.environ.get(env_name)
-            if chave:
-                return f"🔑 *Cofre:* `{env_name}`\nOrigem: `{'DB' if db else 'ENV'}`\nTamanho: {len(chave)}\nPrefixo: {chave[:5]}***"
-            return "🔴 Cofre vazio ou chave inexistente."
-            
-        elif comando == "audit_op":
-            if not user_data.get('is_admin'): return "🔴 Acesso Negado. Exige Nível Master."
-            login_alvo = argumentos[0] if argumentos else ""
-            uso = exec_db_query("SELECT msg_count FROM user_usage WHERE login = %s", (login_alvo,), fetch=True)
-            if not uso: return "🔴 Operador não existe no radar."
-            return f"👤 *Dossiê Operacional:* {login_alvo}\nConsumo: {uso[0]['msg_count']} msgs."
-
-        # Retorno padrão para comandos não migrados ainda
-        return f"⚠️ O comando tático `{comando}` ainda está sendo acoplado ao Motor Headless."
-
 
 # ==========================================
 # 7. ROTAS FLASK DO C2 E MOTOR DE DESCOBERTA
@@ -2032,47 +1979,6 @@ def api_init():
     
     conn.close()
     return jsonify({"sucesso": True, "ias": ias, "limits_dict": limits})
-
-# ==========================================
-# 7.5. ROTAS DE COMUNICAÇÃO WEBHOOK (WHATSAPP)
-# ==========================================
-@app.route('/api/webhook/whatsapp', methods=['POST'])
-def webhook_whatsapp():
-    """ 
-    Recebe as requisições da Meta/Twilio/Evolution API.
-    A arquitetura é imune a bloqueios de WebSocket.
-    """
-    try:
-        dados = request.json
-        # Estrutura baseada em APIs padrão (ajustável conforme o provedor do WhatsApp)
-        remetente = dados.get('from', '') # Número do telefone, ex: 5511999999999
-        texto = dados.get('body', '').strip()
-        
-        # 1. Blindagem de Segurança (Só operadores cadastrados)
-        operador = SistemaHeadless.validar_operador(remetente, origem="whatsapp")
-        if not operador:
-            return jsonify({"status": "ignorado", "motivo": "Número não autorizado na Máfia."}), 200
-
-        # 2. Roteamento de Comandos (ex: "!api key_info GROQ_KEY")
-        if texto.startswith("!api "):
-            partes = texto.replace("!api ", "").split()
-            comando = partes[0]
-            argumentos = partes[1:]
-            
-            # Cérebro processa e devolve texto formatado pro WhatsApp
-            resposta_texto = SistemaHeadless.executar_comando(comando, argumentos, operador)
-            
-            # Aqui enviamos a requisição de volta para a API do WhatsApp (ex: Twilio)
-            # return enviar_mensagem_whatsapp(remetente, resposta_texto)
-            return jsonify({"status": "sucesso", "resposta": resposta_texto}), 200
-            
-        else:
-            # Se for uma mensagem normal, o WhatsApp pode enviar para o LLM conversar (chat)
-            return jsonify({"status": "sucesso", "acao": "aguardando_chat"}), 200
-            
-    except Exception as e:
-        print(f"🔴 [WHATSAPP CRÍTICO] Falha no roteamento: {e}")
-        return jsonify({"erro": "Falha C2"}), 500
 
 # ==========================================
 # 8. MIDDLEWARES E MOTORES FÍSICOS
