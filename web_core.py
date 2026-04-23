@@ -2034,6 +2034,47 @@ def api_init():
     return jsonify({"sucesso": True, "ias": ias, "limits_dict": limits})
 
 # ==========================================
+# 7.5. ROTAS DE COMUNICAÇÃO WEBHOOK (WHATSAPP)
+# ==========================================
+@app.route('/api/webhook/whatsapp', methods=['POST'])
+def webhook_whatsapp():
+    """ 
+    Recebe as requisições da Meta/Twilio/Evolution API.
+    A arquitetura é imune a bloqueios de WebSocket.
+    """
+    try:
+        dados = request.json
+        # Estrutura baseada em APIs padrão (ajustável conforme o provedor do WhatsApp)
+        remetente = dados.get('from', '') # Número do telefone, ex: 5511999999999
+        texto = dados.get('body', '').strip()
+        
+        # 1. Blindagem de Segurança (Só operadores cadastrados)
+        operador = SistemaHeadless.validar_operador(remetente, origem="whatsapp")
+        if not operador:
+            return jsonify({"status": "ignorado", "motivo": "Número não autorizado na Máfia."}), 200
+
+        # 2. Roteamento de Comandos (ex: "!api key_info GROQ_KEY")
+        if texto.startswith("!api "):
+            partes = texto.replace("!api ", "").split()
+            comando = partes[0]
+            argumentos = partes[1:]
+            
+            # Cérebro processa e devolve texto formatado pro WhatsApp
+            resposta_texto = SistemaHeadless.executar_comando(comando, argumentos, operador)
+            
+            # Aqui enviamos a requisição de volta para a API do WhatsApp (ex: Twilio)
+            # return enviar_mensagem_whatsapp(remetente, resposta_texto)
+            return jsonify({"status": "sucesso", "resposta": resposta_texto}), 200
+            
+        else:
+            # Se for uma mensagem normal, o WhatsApp pode enviar para o LLM conversar (chat)
+            return jsonify({"status": "sucesso", "acao": "aguardando_chat"}), 200
+            
+    except Exception as e:
+        print(f"🔴 [WHATSAPP CRÍTICO] Falha no roteamento: {e}")
+        return jsonify({"erro": "Falha C2"}), 500
+
+# ==========================================
 # 8. MIDDLEWARES E MOTORES FÍSICOS
 # ==========================================
 def check_rate_limit_and_permissions(ia_name, user_data):
